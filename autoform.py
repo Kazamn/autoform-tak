@@ -3,6 +3,8 @@ import json
 import time
 import subprocess
 import sys
+import threading   
+import itertools
 from dotenv import load_dotenv
 from google import genai
 from selenium import webdriver
@@ -21,20 +23,42 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    print("\n" + "="*50)
-    print("[ERROR] API KEY GEMINI TIDAK DITEMUKAN!")
-    print("="*50)
-    print("Aplikasi membutuhkan kunci akses AI untuk bisa membaca PDF.")
-    print("Cara mengatasi:")
-    print("1. Buat file bernama tepat '.env' di folder yang sama dengan aplikasi ini.")
-    print("2. Buka file tersebut.")
-    print("3. Isi dengan teks berikut: GEMINI_API_KEY=masukkan_api_key_milikmu_disini")
-    print("\n*Kamu bisa mendapatkan API Key gratis di: https://aistudio.google.com/app/apikey")
-    print("="*50)
-    input("\nTekan Enter untuk keluar dari aplikasi...")
+    print("\n" + "-"*50)
+    print("[ERROR] GEMINI API KEY NOT FOUND!")
+    print("-"*50)
+    print("The application requires an AI access key to read PDFs.")
+    print("How to resolve this:")
+    print("1. Create a file named exactly '.env' in the same folder as this application.")
+    print("2. Open the file.")
+    print("3. Insert the following text: GEMINI_API_KEY=insert_your_api_key_here")
+    print("\n*You can get a free API Key at: https://aistudio.google.com/app/apikey")
+    print("-"*50)
+    input("\nPress Enter to exit the application...")
     exit()
 
 client = genai.Client(api_key=api_key)
+
+class Spinner:
+    def __init__(self, message="Loading..."):
+        self.spinner = itertools.cycle(['-', '\\', '|', '/'])
+        self.stop_running = False
+        self.message = message
+        self.thread = threading.Thread(target=self.spin)
+
+    def spin(self):
+        while not self.stop_running:
+            sys.stdout.write(f"\r{self.message} {next(self.spinner)}")
+            sys.stdout.flush()
+            time.sleep(0.1)
+        sys.stdout.write('\r' + ' ' * (len(self.message) + 2) + '\r')
+
+    def start(self):
+        self.stop_running = False
+        self.thread.start()
+
+    def stop(self):
+        self.stop_running = True
+        self.thread.join()
 
 REFERENSI_DROPDOWN = """
 DAFTAR MENU FORM TAK:
@@ -150,335 +174,350 @@ DAFTAR MENU FORM TAK:
    - Keikutsertaan: ['Peserta']
 """
 
-def ekstrak_sertifikat_ke_json(pdf_path):
-    print(f"Membaca file: {pdf_path} ...")
-    sertifikat_file = client.files.upload(file=pdf_path)
+def extract_certificate_to_json(pdf_path):
+    print(f"Reading file: {pdf_path} ...")
+    certificate_file = client.files.upload(file=pdf_path)
     
     prompt = f"""
-    Kamu adalah sistem ekstraksi data otomatis untuk pengisian form Transkrip Aktivitas Kemahasiswaan (TAK) Telkom University.
+    You are an automated data extraction system for filling out the Telkom University Transkrip Aktivitas Kemahasiswaan (TAK) form.
     
-    Berikut adalah referensi pilihan dropdown yang tersedia di sistem:
+    Here is the reference for the available dropdown options in the system:
     {REFERENSI_DROPDOWN}
     
-    Patuhi struktur key JSON berikut dan pastikan kategori menggunakan teks persis dari referensi:
-    - "tanggal_selesai": (Cari kata kunci tanggal penyelesaian atau terbit sertifikat. Wajib ubah ke format DD/MM/YYYY)
-    - "tanggal_mulai": (Cari tanggal pendaftaran/enrollment atau tanggal mulai kursus. Jika tidak tertulis eksplisit, silakan HITUNG MUNDUR dari "tanggal_selesai" dengan asumsi kecepatan belajar sangat intensif, yaitu 12 jam per hari. Contoh: jika durasi total 90 jam, hitung mundur sekitar 7-8 hari dari tanggal selesai. Jika benar-benar tidak ada referensi durasi/waktu mulai, samakan dengan "tanggal_selesai". Wajib ubah ke format DD/MM/YYYY)
-    - "deskripsi": (Buat 1-2 kalimat ringkas materi yang dipelajari dan sebutkan penyelenggaranya. ATURAN DURASI: Jika ada informasi durasi >= 5 jam, WAJIB gunakan kata estimasi di akhir kalimat. Contoh: "dengan estimasi waktu pembelajaran sekitar X jam" atau "dengan perkiraan penyelesaian X jam". JANGAN tulis "dengan total durasi X jam" secara absolut. Abaikan penulisan durasi jika < 5 jam.)
-    - "penyelenggara": (Nama institusi penerbit)
-    - "nama_kegiatan": (Judul kelas atau kegiatan)
-    - "nama_kegiatan_inggris": (Terjemahkan ke bahasa Inggris)
-    - "jenis_kategori": (PILIH SATU kategori yang paling tepat dari referensi. ATURAN PENTING: Jika sertifikat berupa kelulusan kelas/kursus/training seperti dari Dicoding atau Coursera, WAJIB pilih "Pelatihan". Pilih "Sertifikasi" HANYA jika itu adalah kelulusan ujian sertifikasi profesi resmi.)
-    - "jenis_kegiatan": (PILIH SATU teks persis dari Jenis Kegiatan pada kategori terpilih)
-    - "tingkat_kegiatan": (PILIH SATU teks persis dari Tingkat Kegiatan pada kategori terpilih)
-    - "keikutsertaan": (PILIH SATU teks persis dari Keikutsertaan pada kategori terpilih)
-    - "jenis_penyelenggara": (Analisis institusi penerbit. Jika diselenggarakan oleh Telkom University atau organisasi internal di dalamnya, tulis "Internal". Jika dari luar kampus seperti Coursera, Dicoding, dll, tulis "External")
+    Comply with the following JSON key structure and ensure the categories use the exact text from the reference:
+    - "tanggal_selesai": (Find the completion date or certificate issuance date. MUST be converted to DD/MM/YYYY format)
+    - "tanggal_mulai": (Find the enrollment date or course start date. If not explicitly stated, please COUNT BACKWARDS from "tanggal_selesai" assuming a highly intensive learning pace of 12 hours per day. Example: if the total duration is 90 hours, count back around 7-8 days from the completion date. If there is absolutely no reference to duration/start time, make it the same as "tanggal_selesai". MUST be converted to DD/MM/YYYY format)
+    - "deskripsi": (Create 1-2 concise sentences in Indonesian of the material learned and mention the organizer. DURATION RULE: If there is duration info >= 5 hours, MUST use the word 'estimasi' at the end of the sentence. Example: "dengan estimasi waktu pembelajaran sekitar X jam" or "dengan perkiraan penyelesaian X jam". DO NOT write "dengan total durasi X jam" absolutely. Ignore duration writing if < 5 hours.)
+    - "penyelenggara": (Name of the issuing institution)
+    - "nama_kegiatan": (Title of the class or activity)
+    - "nama_kegiatan_inggris": (Translate the activity title to English)
+    - "jenis_kategori": (CHOOSE ONE most appropriate category from the reference. IMPORTANT RULE: If the certificate is for passing a class/course/training such as from Dicoding or Coursera, MUST choose "Pelatihan". Choose "Sertifikasi" ONLY if it is passing an official professional certification exam.)
+    - "jenis_kegiatan": (CHOOSE ONE exact text from Jenis Kegiatan in the selected category)
+    - "tingkat_kegiatan": (CHOOSE ONE exact text from Tingkat Kegiatan in the selected category)
+    - "keikutsertaan": (CHOOSE ONE exact text from Keikutsertaan in the selected category)
+    - "jenis_penyelenggara": (Analyze the issuing institution. If organized by Telkom University or internal organizations within it, write "Internal". If from outside the campus like Coursera, Dicoding, etc., write "External")
     
-    Keluarkan HANYA output JSON murni tanpa markdown.
+    Output ONLY pure JSON without markdown.
     """
 
-    daftar_model = [
+    model_list = [
         "gemini-3.7-flash",    
         "gemini-3.6-flash",   
         "gemini-3.5-flash"    
     ]
     
-    hasil_teks = ""
+    text_result = ""
     
-    for nama_model in daftar_model:
+    for model_name in model_list:
         try:
-            print(f"  -> Menganalisis dokumen menggunakan {nama_model} ...")
+            pesan_loading = f"  -> Analyzing document using {model_name}"
+            loading_anim = Spinner(pesan_loading)
+            loading_anim.start()
+            
             response = client.models.generate_content(
-                model=nama_model, 
-                contents=[sertifikat_file, prompt]
+                model=model_name, 
+                contents=[certificate_file, prompt]
             )
-            hasil_teks = response.text.strip()
-            print(f"  [V] Berhasil mengekstrak data dengan {nama_model}!")
+            
+            loading_anim.stop()
+            text_result = response.text.strip()
+            print(f"  [V] Successfully extracted data with {model_name}!")
             break  
             
         except Exception as e:
-            print(f"  [!] {nama_model} gagal digunakan. Beralih ke model cadangan...")
+            loading_anim.stop() 
+            print(f"  [!] {model_name} failed. Switching to backup model...")
             time.sleep(2) 
             
-    client.files.delete(name=sertifikat_file.name)
+    client.files.delete(name=certificate_file.name)
     
-    if not hasil_teks:
-        print("\n[ERROR] Semua model AI gagal memproses dokumen. Server mungkin sedang sibuk atau kuota API habis.")
+    if not text_result:
+        print("\n[ERROR] All AI models failed to process the document. The server might be busy or API quota exceeded.")
         return None
         
-    if hasil_teks.startswith("```json"):
-        hasil_teks = hasil_teks[7:-3].strip()
-    elif hasil_teks.startswith("```"):
-        hasil_teks = hasil_teks[3:-3].strip()
+    if text_result.startswith("```json"):
+        text_result = text_result[7:-3].strip()
+    elif text_result.startswith("```"):
+        text_result = text_result[3:-3].strip()
         
-    return json.loads(hasil_teks)
+    return json.loads(text_result)
 
-def klik_dropdown(wait, driver, nama_formcontrol, teks_target):
-    if not teks_target or teks_target == "-":
+def click_dropdown(wait, driver, formcontrol_name, target_text):
+    if not target_text or target_text == "-":
         return
         
     try:
-        print(f"-> Memilih '{teks_target}' pada kotak {nama_formcontrol}...")
-        xpath_dropdown = f"//ng-select[@formcontrolname='{nama_formcontrol}']"
-        dropdown = wait.until(EC.presence_of_element_located((By.XPATH, xpath_dropdown)))
+        print(f"-> Selecting '{target_text}' in the {formcontrol_name} box...")
+        dropdown_xpath = f"//ng-select[@formcontrolname='{formcontrol_name}']"
+        dropdown = wait.until(EC.presence_of_element_located((By.XPATH, dropdown_xpath)))
 
-        area_klik = dropdown.find_element(By.CSS_SELECTOR, '.single')
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", area_klik)
+        click_area = dropdown.find_element(By.CSS_SELECTOR, '.single')
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", click_area)
         time.sleep(0.1)
-        driver.execute_script("arguments[0].click();", area_klik)
+        driver.execute_script("arguments[0].click();", click_area)
         time.sleep(0.1)
 
-        xpath_pilihan = f"{xpath_dropdown}//select-dropdown//li[contains(., '{teks_target}')]"
-        pilihan = driver.find_element(By.XPATH, xpath_pilihan)
-        driver.execute_script("arguments[0].click();", pilihan)
+        option_xpath = f"{dropdown_xpath}//select-dropdown//li[contains(., '{target_text}')]"
+        option = driver.find_element(By.XPATH, option_xpath)
+        driver.execute_script("arguments[0].click();", option)
         time.sleep(0.1) 
     except Exception as e:
-        print(f"  [X] Gagal memilih '{teks_target}'.")
+        print(f"  [X] Failed to select '{target_text}'.")
         try:
-            driver.execute_script("arguments[0].click();", area_klik)
+            driver.execute_script("arguments[0].click();", click_area)
         except:
             pass
 
-def isi_form_tak(driver, data_json, path_ke_pdf):
+def fill_tak_form(driver, json_data, pdf_path):
     try:
-        print("\n" + "="*50)
-        print("BERHASIL TERHUBUNG KE BROWSER!")
-        print("Pastikan kamu SUDAH login.")
-        input("JIKA SUDAH SIAP, TEKAN ENTER DI TERMINAL INI UNTUK MEMULAI... ")
-        print("="*50 + "\n")
+        print("\n" + "-"*50)
+        print("SUCCESSFULLY CONNECTED TO BROWSER!")
+        print("Please ensure you are ALREADY logged in.")
+        input("Press Enter to Start... ")
+        print("-"*50 + "\n")
         
-        # 1. Pastikan berada di tab yang benar
+        # 1. Ensure you are on the correct tab
         for handle in driver.window_handles:
             driver.switch_to.window(handle)
             if "telkomuniversity.ac.id" in driver.current_url or "tak" in driver.current_url:
                 break
                 
-        # 2. Refresh halaman ke form input baru 
-        print("Mereset halaman form TAK...")
+        # 2. Refresh page to new input form
+        print("Resetting TAK form page...")
         driver.get("https://situ-kem.telkomuniversity.ac.id/tak/input-tak")
         time.sleep(1) 
         
         wait = WebDriverWait(driver, 5)
-        print("Mulai menginjeksi data ke form TAK secara otomatis...\n")
+        print("Starting automated data injection into TAK form...\n")
         
-        # 3. Tahun Akademik 
-        dropdown_tahun = wait.until(EC.element_to_be_clickable((By.XPATH, "//ng-select[@formcontrolname='year']")))
-        dropdown_tahun.click()
+        # 3. Academic Year
+        print("-> Setting academic year to '2025/2026'...")
+        year_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//ng-select[@formcontrolname='year']")))
+        year_dropdown.click()
         time.sleep(0.1)
         wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='2025/2026']"))).click()
         time.sleep(0.1)
         
-        # 4. Tanggal Mulai dan Selesai
-        input_tgl_mulai = wait.until(EC.presence_of_element_located((By.ID, "start_date")))
-        input_tgl_mulai.clear()
-        input_tgl_mulai.send_keys(data_json.get("tanggal_mulai", ""))
+        # 4. Start and End Dates
+        print(f"-> Entering start date: '{json_data.get('tanggal_mulai', '')}'...")
+        start_date_input = wait.until(EC.presence_of_element_located((By.ID, "start_date")))
+        start_date_input.clear()
+        start_date_input.send_keys(json_data.get("tanggal_mulai", ""))
         
-        input_tgl_selesai = wait.until(EC.presence_of_element_located((By.ID, "end_date")))
-        input_tgl_selesai.clear()
-        input_tgl_selesai.send_keys(data_json.get("tanggal_selesai", ""))
+        print(f"-> Entering end date: '{json_data.get('tanggal_selesai', '')}'...")
+        end_date_input = wait.until(EC.presence_of_element_located((By.ID, "end_date")))
+        end_date_input.clear()
+        end_date_input.send_keys(json_data.get("tanggal_selesai", ""))
         time.sleep(0.1)
 
-        # 5. EKSEKUSI DROPDOWN KATEGORI & KEGIATAN
-        klik_dropdown(wait, driver, "category", data_json.get("jenis_kategori"))
-        klik_dropdown(wait, driver, "activity", data_json.get("jenis_kegiatan"))
-        klik_dropdown(wait, driver, "level", data_json.get("tingkat_kegiatan"))
-        klik_dropdown(wait, driver, "participation", data_json.get("keikutsertaan"))
+        # 5. EXECUTE CATEGORY & ACTIVITY DROPDOWNS
+        click_dropdown(wait, driver, "category", json_data.get("jenis_kategori"))
+        click_dropdown(wait, driver, "activity", json_data.get("jenis_kegiatan"))
+        click_dropdown(wait, driver, "level", json_data.get("tingkat_kegiatan"))
+        click_dropdown(wait, driver, "participation", json_data.get("keikutsertaan"))
 
-        # 6. Deskripsi
-        xpath_deskripsi = "//textarea[@formcontrolname='description']"
-        input_deskripsi = wait.until(EC.presence_of_element_located((By.XPATH, xpath_deskripsi)))
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", input_deskripsi)
+        # 6. Description
+        print("-> Writing description...")
+        description_xpath = "//textarea[@formcontrolname='description']"
+        description_input = wait.until(EC.presence_of_element_located((By.XPATH, description_xpath)))
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", description_input)
         time.sleep(0.1)
-        input_deskripsi.clear()
-        input_deskripsi.send_keys(data_json.get("deskripsi", ""))
+        description_input.clear()
+        description_input.send_keys(json_data.get("deskripsi", ""))
         
-        # 7. Upload Berkas Sertifikat
-        input_file = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='file']")))
-        path_sertifikat = os.path.abspath(path_ke_pdf) 
-        input_file.send_keys(path_sertifikat)
+        # 7. Upload Certificate File
+        certificate_name = os.path.basename(pdf_path)
+        print(f"-> Uploading certificate file: '{certificate_name}'...")
+        file_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='file']")))
+        certificate_path = os.path.abspath(pdf_path) 
+        file_input.send_keys(certificate_path)
 
-        # 8. DROPDOWN JENIS PENYELENGGARA (INTERNAL/EXTERNAL)
-        klik_dropdown(wait, driver, "organizer_type_id", data_json.get("jenis_penyelenggara"))
+        # 8. DROPDOWN FOR ORGANIZER TYPE (INTERNAL/EXTERNAL)
+        click_dropdown(wait, driver, "organizer_type_id", json_data.get("jenis_penyelenggara"))
 
-        # 9. Penyelenggara
-        input_organizer = wait.until(EC.presence_of_element_located((By.NAME, "organizer")))
-        input_organizer.clear()
-        input_organizer.send_keys(data_json.get("penyelenggara", ""))
+        # 9. Organizer
+        print(f"-> Entering organizer: '{json_data.get('penyelenggara', '')}'...")
+        organizer_input = wait.until(EC.presence_of_element_located((By.NAME, "organizer")))
+        organizer_input.clear()
+        organizer_input.send_keys(json_data.get("penyelenggara", ""))
         
-        # 10. Nama Kegiatan
-        input_act_name = wait.until(EC.presence_of_element_located((By.NAME, "activity_name_id")))
-        input_act_name.clear()
-        input_act_name.send_keys(data_json.get("nama_kegiatan", ""))
+        # 10. Activity Name
+        print(f"-> Entering activity name: '{json_data.get('nama_kegiatan', '')}'...")
+        act_name_input = wait.until(EC.presence_of_element_located((By.NAME, "activity_name_id")))
+        act_name_input.clear()
+        act_name_input.send_keys(json_data.get("nama_kegiatan", ""))
         
-        # 11. Nama Kegiatan Inggris
-        input_act_en = wait.until(EC.presence_of_element_located((By.NAME, "activity_name_en")))
-        input_act_en.clear()
-        input_act_en.send_keys(data_json.get("nama_kegiatan_inggris", ""))
+        # 11. English Activity Name
+        print(f"-> Entering English activity name: '{json_data.get('nama_kegiatan_inggris', '')}'...")
+        act_en_input = wait.until(EC.presence_of_element_located((By.NAME, "activity_name_en")))
+        act_en_input.clear()
+        act_en_input.send_keys(json_data.get("nama_kegiatan_inggris", ""))
         
-        print("\nSemua data dan file berhasil diinjeksikan secara otomatis!")
-        print("Selesai! Silakan review formulir di browser dan centang pernyataan persetujuan sebelum Submit.")
+        print("\nAll data and files have been successfully injected automatically!")
+        print("Done! Please review the form in the browser and check the agreement statement before Submitting.")
         
     except Exception as e:
-        print(f"Terjadi error pada Selenium: {e}")
+        print(f"A Selenium error occurred: {e}")
     finally:
-        print("Selesai mengisi satu form.")
+        print("Finished filling out one form.")
 
-def pilih_file_pdf():
-    folder_pdf = "sertifikat_pdf"
+def select_pdf_file():
+    pdf_folder = "certificate_pdf"
     
-    if not os.path.exists(folder_pdf):
-        os.makedirs(folder_pdf)
-        print(f"\n[INFO] Folder '{folder_pdf}' baru saja dibuat!")
-        print(f"Silakan pindahkan semua file PDF kamu ke dalam folder '{folder_pdf}' tersebut lalu jalankan ulang script.")
+    if not os.path.exists(pdf_folder):
+        os.makedirs(pdf_folder)
+        print(f"\n[INFO] The '{pdf_folder}' folder has just been created!")
+        print(f"Please move all your PDF files into the '{pdf_folder}' folder and re-run the script.")
         return None
         
-    daftar_pdf = [file for file in os.listdir(folder_pdf) if file.lower().endswith('.pdf')]
+    pdf_list = [file for file in os.listdir(pdf_folder) if file.lower().endswith('.pdf')]
     
-    if not daftar_pdf:
-        print(f"\nTidak ada file PDF yang ditemukan di dalam folder '{folder_pdf}'.")
+    if not pdf_list:
+        print(f"\nNo PDF files found in the '{pdf_folder}' folder.")
         return None
         
-    print(f"\n=== DAFTAR FILE SERTIFIKAT (Di dalam folder '{folder_pdf}') ===")
-    for index, file in enumerate(daftar_pdf):
-        path_lengkap = os.path.join(folder_pdf, file)
+    print(f"\n=== CERTIFICATE FILE LIST (Inside '{pdf_folder}' folder) ===")
+    for index, file in enumerate(pdf_list):
+        full_path = os.path.join(pdf_folder, file)
         
-        ukuran_bytes = os.path.getsize(path_lengkap)
-        ukuran_mb = ukuran_bytes / (1024 * 1024)
-        peringatan = " ⚠️ (MELEBIHI 2 MB!)" if ukuran_mb > 2 else f" ({ukuran_mb:.2f} MB)"
-        print(f"[{index + 1}] {file}{peringatan}")
+        size_bytes = os.path.getsize(full_path)
+        size_mb = size_bytes / (1024 * 1024)
+        warning = " ⚠️ (EXCEEDS 2 MB!)" if size_mb > 2 else f" ({size_mb:.2f} MB)"
+        print(f"[{index + 1}] {file}{warning}")
         
     while True:
         try:
-            pilihan = int(input("\nMasukkan nomor file yang ingin diproses : "))
-            if 1 <= pilihan <= len(daftar_pdf):
-                file_terpilih = daftar_pdf[pilihan - 1]
-                path_lengkap = os.path.join(folder_pdf, file_terpilih)
+            choice = int(input("\nEnter the number of the file you want to process: "))
+            if 1 <= choice <= len(pdf_list):
+                selected_file = pdf_list[choice - 1]
+                full_path = os.path.join(pdf_folder, selected_file)
                 
-                ukuran_bytes = os.path.getsize(path_lengkap)
-                if ukuran_bytes > 2 * 1024 * 1024:
-                    print(f"\n[X] DITOLAK: Ukuran file '{file_terpilih}' mencapai {ukuran_bytes / (1024*1024):.2f} MB.")
-                    print("Web TAK Telkom membatasi maksimal 2 MB. Silakan kompres PDF kamu lalu coba lagi.")
+                size_bytes = os.path.getsize(full_path)
+                if size_bytes > 2 * 1024 * 1024:
+                    print(f"\n[X] REJECTED: The file size of '{selected_file}' is {size_bytes / (1024*1024):.2f} MB.")
+                    print("Telkom's TAK web limits the maximum size to 2 MB. Please compress your PDF and try again.")
                     continue 
                     
-                print(f"File terpilih: {file_terpilih}\n")
+                print(f"Selected file: {selected_file}\n")
                 
-                return path_lengkap 
+                return full_path 
             else:
-                print("Nomor di luar jangkauan. Silakan coba lagi.")
+                print("Number out of range. Please try again.")
         except ValueError:
-            print("Input tidak valid! Harap masukkan angka.")
+            print("Invalid input! Please enter a number.")
 
-def buka_browser_otomatis(pilihan):
-    url_tak = "https://situ-kem.telkomuniversity.ac.id/tak/input-tak"
-    sistem_mac = sys.platform == "darwin" 
+def auto_open_browser(choice):
+    tak_url = "https://situ-kem.telkomuniversity.ac.id/tak/input-tak"
+    is_mac = sys.platform == "darwin" 
     
-    if pilihan == '1': # Microsoft Edge
-        if sistem_mac:
-            path_browser = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+    if choice == '1': # Microsoft Edge
+        if is_mac:
+            browser_path = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
             data_dir = os.path.expanduser("~/edge_debug")
         else:
-            path_browser = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+            browser_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
             data_dir = r"C:\edge_debug"
             
-    elif pilihan == '2': # Google Chrome
-        if sistem_mac:
-            path_browser = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    elif choice == '2': # Google Chrome
+        if is_mac:
+            browser_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
             data_dir = os.path.expanduser("~/chrome_debug")
         else:
-            path_browser = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            browser_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
             data_dir = r"C:\chrome_debug"
             
-    elif pilihan == '3': # Brave Browser
-        if sistem_mac:
-            path_browser = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+    elif choice == '3': # Brave Browser
+        if is_mac:
+            browser_path = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
             data_dir = os.path.expanduser("~/brave_debug")
         else:
-            path_browser = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+            browser_path = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
             data_dir = r"C:\brave_debug"
             
-    elif pilihan == '4': # Opera Browser
-        if sistem_mac:
-            path_browser = "/Applications/Opera.app/Contents/MacOS/Opera"
+    elif choice == '4': # Opera Browser
+        if is_mac:
+            browser_path = "/Applications/Opera.app/Contents/MacOS/Opera"
             data_dir = os.path.expanduser("~/opera_debug")
         else:
-            path_browser = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Opera\launcher.exe")
+            browser_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Opera\launcher.exe")
             data_dir = r"C:\opera_debug"
     else:
         return False
 
-    if not os.path.exists(path_browser):
-        if pilihan == '4' and not sistem_mac:
-            path_browser = r"C:\Program Files\Opera\launcher.exe"
-            if os.path.exists(path_browser):
+    if not os.path.exists(browser_path):
+        if choice == '4' and not is_mac:
+            browser_path = r"C:\Program Files\Opera\launcher.exe"
+            if os.path.exists(browser_path):
                 pass 
             else:
-                print(f"\n[X] Gagal: Tidak dapat menemukan Opera di laptop ini.")
+                print(f"\n[X] Failed: Cannot find Opera on this machine.")
                 return False
         else:
-            print(f"\n[X] Gagal: Tidak dapat menemukan browser di '{path_browser}'")
-            print("Pastikan browser tersebut sudah terinstall!")
+            print(f"\n[X] Failed: Cannot find browser at '{browser_path}'")
+            print("Make sure the browser is installed!")
             return False
 
-    print("\nMembuka browser dalam mode debugging...")
-    subprocess.Popen([path_browser, "--remote-debugging-port=9222", f"--user-data-dir={data_dir}", url_tak])
+    print("\nOpening browser in debugging mode...")
+    subprocess.Popen([browser_path, "--remote-debugging-port=9222", f"--user-data-dir={data_dir}", tak_url])
     time.sleep(2) 
     return True
 
-def inisialisasi_browser():
-    print("\n" + "="*50)
-    print("=== PILIH BROWSER ===")
+def initialize_browser():
+    print("\n" + "-"*50)
+    print("=== CHOOSE BROWSER ===")
     print("[1] Microsoft Edge")
     print("[2] Google Chrome")
     print("[3] Brave Browser")
     print("[4] Opera Browser")
-    print("="*50)
+    print("-"*50)
     
     while True:
-        pilihan = input("Masukkan nomor browser : ").strip()
+        choice = input("Enter browser number: ").strip()
         
-        if pilihan in ['1', '2', '3', '4']:
-            if not buka_browser_otomatis(pilihan):
+        if choice in ['1', '2', '3', '4']:
+            if not auto_open_browser(choice):
                 continue 
             
             try:
-                if pilihan == '1':
-                    print("Menyambungkan ke Microsoft Edge...")
+                if choice == '1':
+                    print("Connecting to Microsoft Edge...")
                     options = EdgeOptions()
                     options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
                     service = EdgeService(EdgeChromiumDriverManager().install())
                     return webdriver.Edge(service=service, options=options)
                     
-                elif pilihan in ['2', '3', '4']:
-                    nama_browser = "Chrome" if pilihan == '2' else "Brave" if pilihan == '3' else "Opera"
-                    print(f"Menyambungkan ke {nama_browser}...")
+                elif choice in ['2', '3', '4']:
+                    browser_name = "Chrome" if choice == '2' else "Brave" if choice == '3' else "Opera"
+                    print(f"Connecting to {browser_name}...")
                     options = ChromeOptions()
                     options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
                     service = ChromeService(ChromeDriverManager().install())
                     return webdriver.Chrome(service=service, options=options)
                     
             except Exception as e:
-                print(f"\n[GAGAL] Tidak bisa terhubung ke browser.")
-                print(f"Error detail: {e}")
+                print(f"\n[FAILED] Cannot connect to the browser.")
+                print(f"Error details: {e}")
                 sys.exit(1)
         else:
-            print("[X] Pilihan tidak valid. Silakan masukkan angka 1, 2, 3, atau 4.")
+            print("[X] Invalid choice. Please enter 1, 2, 3, or 4.")
 
 if __name__ == "__main__":
-    driver_utama = inisialisasi_browser()
+    main_driver = initialize_browser()
 
     while True:
-        print("\n" + "="*50)
-        file_pdf = pilih_file_pdf()
+        print("\n" + "-"*50)
+        pdf_file = select_pdf_file()
         
-        if file_pdf:
-            data_sertifikat = ekstrak_sertifikat_ke_json(file_pdf)
-            if data_sertifikat:
-                isi_form_tak(driver_utama, data_sertifikat, file_pdf)
+        if pdf_file:
+            certificate_data = extract_certificate_to_json(pdf_file)
+            if certificate_data:
+                fill_tak_form(main_driver, certificate_data, pdf_file)
         else:
-            print("Proses dilewati karena tidak ada file PDF yang dipilih.")
+            print("Process skipped because no PDF file was selected.")
             
-        print("\n" + "="*50)
-        ulangi = input("Apakah kamu ingin memproses sertifikat lain? (y/n): ").strip().lower()
+        print("\n" + "-"*50)
+        repeat = input("Do you want to process another certificate? (y/n): ").strip().lower()
         
-        if ulangi != 'y':
-            print("Terima kasih! Silakan klik tombol silang (X) di pojok kanan atas untuk menutup jendela ini")
+        if repeat != 'y':
+            print("Thank you! Please click the cross (X) button in the top right corner to close this window.")
             break
