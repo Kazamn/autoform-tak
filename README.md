@@ -3,8 +3,8 @@ Autoform TAK Telkom University
 Script otomatisasi untuk mengekstrak informasi dari sertifikat PDF menggunakan **Google Gemini AI** dan menginputkannya secara otomatis ke form web Transkrip Aktivitas Kemahasiswaan (TAK) Telkom University.
 
 Persyaratan Sistem
-* Sistem operasi Windows (karena menggunakan alur *subprocess* direktori Windows).
-* Browser Chromium (Edge / Chrome / Brave).
+* Sistem operasi Windows dan Mac.
+* Browser Chromium (Edge / Chrome / Brave / Opera).
 * API Key aktif dari Google Gemini (melalui Google AI Studio).
 
 Cara Instalasi & Penggunaan
