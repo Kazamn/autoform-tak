@@ -1,9 +1,15 @@
 # Mengabaikan file kredensial API
 .env
 
-# Mengabaikan folder sertifikat agar PDF pribadimu tidak tersebar
+# Mengabaikan folder 
 sertifikat_pdf/
 debug/
+build/
+dist/
 
 # Mengabaikan cache Python
 __pycache__/
+
+# Mengabaikan file hasil build (PyInstaller)
+*.spec
+*.exe

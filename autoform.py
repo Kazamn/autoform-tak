@@ -2,6 +2,7 @@ import os
 import json
 import time
 import subprocess
+import sys
 from dotenv import load_dotenv
 from google import genai
 from selenium import webdriver
@@ -18,6 +19,21 @@ from selenium.webdriver.support import expected_conditions as EC
 load_dotenv() 
 
 api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    print("\n" + "="*50)
+    print("[ERROR] API KEY GEMINI TIDAK DITEMUKAN!")
+    print("="*50)
+    print("Aplikasi membutuhkan kunci akses AI untuk bisa membaca PDF.")
+    print("Cara mengatasi:")
+    print("1. Buat file bernama tepat '.env' di folder yang sama dengan aplikasi ini.")
+    print("2. Buka file tersebut.")
+    print("3. Isi dengan teks berikut: GEMINI_API_KEY=masukkan_api_key_milikmu_disini")
+    print("\n*Kamu bisa mendapatkan API Key gratis di: https://aistudio.google.com/app/apikey")
+    print("="*50)
+    input("\nTekan Enter untuk keluar dari aplikasi...")
+    exit()
+
 client = genai.Client(api_key=api_key)
 
 REFERENSI_DROPDOWN = """
@@ -227,7 +243,7 @@ def isi_form_tak(driver, data_json, path_ke_pdf):
         print("\n" + "="*50)
         print("BERHASIL TERHUBUNG KE BROWSER!")
         print("Pastikan kamu SUDAH login.")
-        input("JIKA SUDAH SIAP, TEKAN ENTER DI TERMINAL INI UNTUK MEMULAI INJEKSI... ")
+        input("JIKA SUDAH SIAP, TEKAN ENTER DI TERMINAL INI UNTUK MEMULAI... ")
         print("="*50 + "\n")
         
         # 1. Pastikan berada di tab yang benar
@@ -332,7 +348,7 @@ def pilih_file_pdf():
         
     while True:
         try:
-            pilihan = int(input("\nMasukkan nomor file yang ingin diproses (contoh: 1): "))
+            pilihan = int(input("\nMasukkan nomor file yang ingin diproses : "))
             if 1 <= pilihan <= len(daftar_pdf):
                 file_terpilih = daftar_pdf[pilihan - 1]
                 path_lengkap = os.path.join(folder_pdf, file_terpilih)
@@ -353,41 +369,73 @@ def pilih_file_pdf():
 
 def buka_browser_otomatis(pilihan):
     url_tak = "https://situ-kem.telkomuniversity.ac.id/tak/input-tak"
+    sistem_mac = sys.platform == "darwin" 
     
-    if pilihan == '1':
-        path_browser = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        data_dir = r"C:\edge_debug"
-    elif pilihan == '2':
-        path_browser = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-        data_dir = r"C:\chrome_debug"
-    elif pilihan == '3':
-        path_browser = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-        data_dir = r"C:\brave_debug"
+    if pilihan == '1': # Microsoft Edge
+        if sistem_mac:
+            path_browser = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+            data_dir = os.path.expanduser("~/edge_debug")
+        else:
+            path_browser = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+            data_dir = r"C:\edge_debug"
+            
+    elif pilihan == '2': # Google Chrome
+        if sistem_mac:
+            path_browser = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            data_dir = os.path.expanduser("~/chrome_debug")
+        else:
+            path_browser = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            data_dir = r"C:\chrome_debug"
+            
+    elif pilihan == '3': # Brave Browser
+        if sistem_mac:
+            path_browser = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+            data_dir = os.path.expanduser("~/brave_debug")
+        else:
+            path_browser = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+            data_dir = r"C:\brave_debug"
+            
+    elif pilihan == '4': # Opera Browser
+        if sistem_mac:
+            path_browser = "/Applications/Opera.app/Contents/MacOS/Opera"
+            data_dir = os.path.expanduser("~/opera_debug")
+        else:
+            path_browser = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Opera\launcher.exe")
+            data_dir = r"C:\opera_debug"
     else:
         return False
 
     if not os.path.exists(path_browser):
-        print(f"\n[X] Gagal: Tidak dapat menemukan browser di '{path_browser}'")
-        print("Pastikan browser tersebut sudah terinstall di komputermu.")
-        return False
+        if pilihan == '4' and not sistem_mac:
+            path_browser = r"C:\Program Files\Opera\launcher.exe"
+            if os.path.exists(path_browser):
+                pass 
+            else:
+                print(f"\n[X] Gagal: Tidak dapat menemukan Opera di laptop ini.")
+                return False
+        else:
+            print(f"\n[X] Gagal: Tidak dapat menemukan browser di '{path_browser}'")
+            print("Pastikan browser tersebut sudah terinstall!")
+            return False
 
     print("\nMembuka browser dalam mode debugging...")
     subprocess.Popen([path_browser, "--remote-debugging-port=9222", f"--user-data-dir={data_dir}", url_tak])
-    time.sleep(1) 
+    time.sleep(2) 
     return True
 
 def inisialisasi_browser():
     print("\n" + "="*50)
-    print("=== PILIH BROWSER UNTUK OTOMATISASI ===")
+    print("=== PILIH BROWSER ===")
     print("[1] Microsoft Edge")
     print("[2] Google Chrome")
     print("[3] Brave Browser")
+    print("[4] Opera Browser")
     print("="*50)
     
     while True:
-        pilihan = input("Masukkan nomor browser (contoh: 1): ").strip()
+        pilihan = input("Masukkan nomor browser : ").strip()
         
-        if pilihan in ['1', '2', '3']:
+        if pilihan in ['1', '2', '3', '4']:
             if not buka_browser_otomatis(pilihan):
                 continue 
             
@@ -399,15 +447,9 @@ def inisialisasi_browser():
                     service = EdgeService(EdgeChromiumDriverManager().install())
                     return webdriver.Edge(service=service, options=options)
                     
-                elif pilihan == '2':
-                    print("Menyambungkan ke Google Chrome...")
-                    options = ChromeOptions()
-                    options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-                    service = ChromeService(ChromeDriverManager().install())
-                    return webdriver.Chrome(service=service, options=options)
-                    
-                elif pilihan == '3':
-                    print("Menyambungkan ke Brave Browser...")
+                elif pilihan in ['2', '3', '4']:
+                    nama_browser = "Chrome" if pilihan == '2' else "Brave" if pilihan == '3' else "Opera"
+                    print(f"Menyambungkan ke {nama_browser}...")
                     options = ChromeOptions()
                     options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
                     service = ChromeService(ChromeDriverManager().install())
@@ -416,9 +458,9 @@ def inisialisasi_browser():
             except Exception as e:
                 print(f"\n[GAGAL] Tidak bisa terhubung ke browser.")
                 print(f"Error detail: {e}")
-                exit()
+                sys.exit(1)
         else:
-            print("[X] Pilihan tidak valid. Silakan masukkan angka 1, 2, atau 3.")
+            print("[X] Pilihan tidak valid. Silakan masukkan angka 1, 2, 3, atau 4.")
 
 if __name__ == "__main__":
     driver_utama = inisialisasi_browser()
