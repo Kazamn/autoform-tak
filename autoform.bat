@@ -1,7 +1,7 @@
 @echo off
 title Autoform TAK Automation
 
-echo Menjalankan sistem otomatisasi TAK...
+echo Running the TAK automation system...
 
 cd /d "%~dp0"
 
