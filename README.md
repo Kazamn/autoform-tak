@@ -1,29 +1,29 @@
-Autoform TAK Telkom University
+Telkom University TAK Autoform
 
-Script otomatisasi untuk mengekstrak informasi dari sertifikat PDF menggunakan **Google Gemini AI** dan menginputkannya secara otomatis ke form web Transkrip Aktivitas Kemahasiswaan (TAK) Telkom University.
+An automation script to extract information from PDF certificates using **Google Gemini AI** and automatically input it into the Telkom University Student Activity Transcript (TAK) web form.
 
-Persyaratan Sistem
-* Sistem operasi Windows dan Mac.
-* Browser Chromium (Edge / Chrome / Brave / Opera).
-* API Key aktif dari Google Gemini (melalui Google AI Studio).
+System Requirements
+* Windows and Mac operating systems.
+* Chromium-based browser (Edge / Chrome / Brave / Opera).
+* Active Google Gemini API Key (via Google AI Studio).
 
-Cara Instalasi & Penggunaan
+Installation & Usage
 
-1. Download script
+1. Download the script
 
-2. Konfigurasi API Key
-Buat sebuah file baru bernama .env di dalam folder proyek, lalu isi dengan format berikut:
+2. Configure API Key
+Create a new file named `.env` in the project folder, then populate it using the following format:
 
-GEMINI_API_KEY=masukkan_api_key_gemini
+GEMINI_API_KEY=insert_gemini_api_key_here
 
-3. Siapkan Dokumen Sertifikat
-Jalankan script untuk pertama kali agar folder sertifikat_pdf dibuat secara otomatis. Pindahkan semua file sertifikat (maksimal 2MB per file) ke dalam folder tersebut.
+3. Prepare Certificate Documents
+Run the script for the first time so that the `certificate_pdf` folder is automatically created. Move all certificate files (maximum 2MB per file) into that folder.
 
-4. Jalankan Aplikasi
-Buka aplikasi dengan mengeklik dua kali pada file autoform.bat atau jalankan langsung dari terminal:
+4. Run the Application
+Open the application by double-clicking the `autoform.bat` file or run it directly from the terminal:
 
 python autoform.py
 
 
-⚠️ Catatan Penting
-Pastikan Anda sudah Login ke portal TAK Telkom University di browser yang terbuka secara otomatis sebelum menekan tombol ENTER di terminal untuk memulai proses injeksi.
+⚠️ Important Note
+Ensure you are logged into the Telkom University TAK portal in the browser window that opens automatically before pressing the ENTER key in the terminal to start the data injection process.
