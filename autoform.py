@@ -480,5 +480,5 @@ if __name__ == "__main__":
         ulangi = input("Apakah kamu ingin memproses sertifikat lain? (y/n): ").strip().lower()
         
         if ulangi != 'y':
-            print("Terima kasih! Menutup program otomatisasi...")
+            print("Terima kasih! Silakan klik tombol silang (X) di pojok kanan atas untuk menutup jendela ini")
             break
