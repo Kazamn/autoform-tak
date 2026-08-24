@@ -33,7 +33,7 @@ if not api_key:
     print("3. Insert the following text: GEMINI_API_KEY=insert_your_api_key_here")
     print("\n*You can get a free API Key at: https://aistudio.google.com/app/apikey")
     print("-"*50)
-    input("\nPress Enter to exit the application...")
+    input("\nPress Enter to exit the application")
     exit()
 
 client = genai.Client(api_key=api_key)
@@ -175,7 +175,7 @@ DAFTAR MENU FORM TAK:
 """
 
 def extract_certificate_to_json(pdf_path):
-    print(f"Reading file: {pdf_path} ...")
+    print(f"Reading file: {pdf_path}")
     certificate_file = client.files.upload(file=pdf_path)
     
     prompt = f"""
@@ -200,9 +200,7 @@ def extract_certificate_to_json(pdf_path):
     Output ONLY pure JSON without markdown.
     """
 
-    model_list = [
-        "gemini-3.7-flash",    
-        "gemini-3.6-flash",   
+    model_list = [      
         "gemini-3.5-flash"    
     ]
     
@@ -226,7 +224,7 @@ def extract_certificate_to_json(pdf_path):
             
         except Exception as e:
             loading_anim.stop() 
-            print(f"  [!] {model_name} failed. Switching to backup model...")
+            print(f"  [!] {model_name} failed. Switching to backup model")
             time.sleep(2) 
             
     client.files.delete(name=certificate_file.name)
@@ -247,7 +245,7 @@ def click_dropdown(wait, driver, formcontrol_name, target_text):
         return
         
     try:
-        print(f"-> Selecting '{target_text}' in the {formcontrol_name} box...")
+        print(f"-> Selecting '{target_text}' in the {formcontrol_name} box")
         dropdown_xpath = f"//ng-select[@formcontrolname='{formcontrol_name}']"
         dropdown = wait.until(EC.presence_of_element_located((By.XPATH, dropdown_xpath)))
 
@@ -273,85 +271,69 @@ def fill_tak_form(driver, json_data, pdf_path):
         print("\n" + "-"*50)
         print("SUCCESSFULLY CONNECTED TO BROWSER!")
         print("Please ensure you are ALREADY logged in.")
-        input("Press Enter to Start... ")
+        input("Press Enter to Start ")
         print("-"*50 + "\n")
         
-        # 1. Ensure you are on the correct tab
         for handle in driver.window_handles:
             driver.switch_to.window(handle)
             if "telkomuniversity.ac.id" in driver.current_url or "tak" in driver.current_url:
                 break
                 
-        # 2. Refresh page to new input form
-        print("Resetting TAK form page...")
+        print("Resetting TAK form page")
         driver.get("https://situ-kem.telkomuniversity.ac.id/tak/input-tak")
         time.sleep(1) 
         
         wait = WebDriverWait(driver, 5)
-        print("Starting automated data injection into TAK form...\n")
+        print("Starting automated data injection into TAK form\n")
         
-        # 3. Academic Year
-        print("-> Setting academic year to '2025/2026'...")
+        print("-> [1/3] Executing sequential dropdowns")
         year_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//ng-select[@formcontrolname='year']")))
         year_dropdown.click()
         time.sleep(0.1)
         wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='2025/2026']"))).click()
         time.sleep(0.1)
         
-        # 4. Start and End Dates
-        print(f"-> Entering start date: '{json_data.get('tanggal_mulai', '')}'...")
-        start_date_input = wait.until(EC.presence_of_element_located((By.ID, "start_date")))
-        start_date_input.clear()
-        start_date_input.send_keys(json_data.get("tanggal_mulai", ""))
-        
-        print(f"-> Entering end date: '{json_data.get('tanggal_selesai', '')}'...")
-        end_date_input = wait.until(EC.presence_of_element_located((By.ID, "end_date")))
-        end_date_input.clear()
-        end_date_input.send_keys(json_data.get("tanggal_selesai", ""))
-        time.sleep(0.1)
-
-        # 5. EXECUTE CATEGORY & ACTIVITY DROPDOWNS
         click_dropdown(wait, driver, "category", json_data.get("jenis_kategori"))
         click_dropdown(wait, driver, "activity", json_data.get("jenis_kegiatan"))
         click_dropdown(wait, driver, "level", json_data.get("tingkat_kegiatan"))
         click_dropdown(wait, driver, "participation", json_data.get("keikutsertaan"))
+        click_dropdown(wait, driver, "organizer_type_id", json_data.get("jenis_penyelenggara"))
 
-        # 6. Description
-        print("-> Writing description...")
-        description_xpath = "//textarea[@formcontrolname='description']"
-        description_input = wait.until(EC.presence_of_element_located((By.XPATH, description_xpath)))
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", description_input)
-        time.sleep(0.1)
-        description_input.clear()
-        description_input.send_keys(json_data.get("deskripsi", ""))
-        
-        # 7. Upload Certificate File
         certificate_name = os.path.basename(pdf_path)
-        print(f"-> Uploading certificate file: '{certificate_name}'...")
+        print(f"-> [2/3] Uploading certificate file: '{certificate_name}'")
         file_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='file']")))
         certificate_path = os.path.abspath(pdf_path) 
         file_input.send_keys(certificate_path)
 
-        # 8. DROPDOWN FOR ORGANIZER TYPE (INTERNAL/EXTERNAL)
-        click_dropdown(wait, driver, "organizer_type_id", json_data.get("jenis_penyelenggara"))
-
-        # 9. Organizer
-        print(f"-> Entering organizer: '{json_data.get('penyelenggara', '')}'...")
-        organizer_input = wait.until(EC.presence_of_element_located((By.NAME, "organizer")))
-        organizer_input.clear()
-        organizer_input.send_keys(json_data.get("penyelenggara", ""))
+        print("-> [3/3] Injecting all text fields simultaneously via JavaScript")
         
-        # 10. Activity Name
-        print(f"-> Entering activity name: '{json_data.get('nama_kegiatan', '')}'...")
-        act_name_input = wait.until(EC.presence_of_element_located((By.NAME, "activity_name_id")))
-        act_name_input.clear()
-        act_name_input.send_keys(json_data.get("nama_kegiatan", ""))
+        js_script = """
+        function fillField(selector, value) {
+            let el = document.querySelector(selector);
+            if (el && value) {
+                el.value = value;
+                // Memicu event agar framework Angular menyadari ada perubahan input
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
         
-        # 11. English Activity Name
-        print(f"-> Entering English activity name: '{json_data.get('nama_kegiatan_inggris', '')}'...")
-        act_en_input = wait.until(EC.presence_of_element_located((By.NAME, "activity_name_en")))
-        act_en_input.clear()
-        act_en_input.send_keys(json_data.get("nama_kegiatan_inggris", ""))
+        fillField('#start_date', arguments[0]);
+        fillField('#end_date', arguments[1]);
+        fillField('textarea[formcontrolname="description"]', arguments[2]);
+        fillField('input[name="organizer"]', arguments[3]);
+        fillField('input[name="activity_name_id"]', arguments[4]);
+        fillField('input[name="activity_name_en"]', arguments[5]);
+        """
+        
+        driver.execute_script(js_script, 
+            json_data.get("tanggal_mulai", ""),
+            json_data.get("tanggal_selesai", ""),
+            json_data.get("deskripsi", ""),
+            json_data.get("penyelenggara", ""),
+            json_data.get("nama_kegiatan", ""),
+            json_data.get("nama_kegiatan_inggris", "")
+        )
         
         print("\nAll data and files have been successfully injected automatically!")
         print("Done! Please review the form in the browser and check the agreement statement before Submitting.")
@@ -457,7 +439,7 @@ def auto_open_browser(choice):
             print("Make sure the browser is installed!")
             return False
 
-    print("\nOpening browser in debugging mode...")
+    print("\nOpening browser in debugging mode")
     subprocess.Popen([browser_path, "--remote-debugging-port=9222", f"--user-data-dir={data_dir}", tak_url])
     time.sleep(2) 
     return True
@@ -480,7 +462,7 @@ def initialize_browser():
             
             try:
                 if choice == '1':
-                    print("Connecting to Microsoft Edge...")
+                    print("Connecting to Microsoft Edge")
                     options = EdgeOptions()
                     options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
                     service = EdgeService(EdgeChromiumDriverManager().install())
@@ -488,7 +470,7 @@ def initialize_browser():
                     
                 elif choice in ['2', '3', '4']:
                     browser_name = "Chrome" if choice == '2' else "Brave" if choice == '3' else "Opera"
-                    print(f"Connecting to {browser_name}...")
+                    print(f"Connecting to {browser_name}")
                     options = ChromeOptions()
                     options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
                     service = ChromeService(ChromeDriverManager().install())
@@ -502,7 +484,7 @@ def initialize_browser():
             print("[X] Invalid choice. Please enter 1, 2, 3, or 4.")
 
 if __name__ == "__main__":
-    main_driver = initialize_browser()
+    main_driver = None  
 
     while True:
         print("\n" + "-"*50)
@@ -510,7 +492,11 @@ if __name__ == "__main__":
         
         if pdf_file:
             certificate_data = extract_certificate_to_json(pdf_file)
+            
             if certificate_data:
+                if main_driver is None:
+                    main_driver = initialize_browser()
+                
                 fill_tak_form(main_driver, certificate_data, pdf_file)
         else:
             print("Process skipped because no PDF file was selected.")
