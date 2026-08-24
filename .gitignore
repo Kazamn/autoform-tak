@@ -1,9 +1,8 @@
 .env
-
-certificate_pdf/
-debug/
+autoform.exe
 build/
 dist/
 __pycache__/
-
+debug/
+certificate_pdf/
 *.spec

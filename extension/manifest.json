@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Autoform TAK Injector",
+  "version": "1.0",
+  "description": "Automated TAK form filler powered by Gemini AI",
+  "permissions": [
+    "storage", 
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://situ-kem.telkomuniversity.ac.id/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
+  }
+}

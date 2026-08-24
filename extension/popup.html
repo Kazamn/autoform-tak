@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            width: 320px;
+            padding: 15px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #4daafc;
+        }
+        label {
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+            display: block;
+        }
+        input[type="password"], input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #005f9e;
+        }
+        .save-btn {
+            background-color: #2ea043;
+            margin-bottom: 15px;
+        }
+        .save-btn:hover {
+            background-color: #238636;
+        }
+        #status {
+            margin-top: 15px;
+            font-size: 12px;
+            text-align: center;
+            color: #ffcc00;
+        }
+    </style>
+</head>
+<body>
+    <h3>Autoform TAK</h3>
+
+    <label for="apiKey">Gemini API Key:</label>
+    <input type="password" id="apiKey" placeholder="Paste your API key here...">
+    <button id="saveKeyBtn" class="save-btn">Save Key</button>
+
+    <hr style="border: 0.5px solid #444; margin-bottom: 15px;">
+
+    <label for="pdfFile">Upload Certificate (PDF):</label>
+    <input type="file" id="pdfFile" accept="application/pdf">
+
+    <button id="processBtn">Analyze & Inject Form</button>
+
+    <div id="status">Ready.</div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
