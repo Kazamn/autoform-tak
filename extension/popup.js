@@ -119,13 +119,13 @@ ${REFERENSI_DROPDOWN}
 Comply with the following JSON key structure and ensure the categories use the exact text from the reference:
 - "tanggal_selesai": (Format WAJIB DD/MM/YYYY. Contoh: 05/08/2026)
 - "tanggal_mulai": (Format WAJIB DD/MM/YYYY. ATURAN LOGIKA WAKTU: Jika durasi sertifikat < 24 jam, tanggal_mulai = tanggal_selesai. TETAPI, jika durasi >= 24 jam, wajib HITUNG MUNDUR dari tanggal_selesai dengan asumsi 1 hari = 12 jam belajar. Contoh: Jika selesai 20/08/2026 dan durasi 90 jam, maka outputkan tanggal_mulai menjadi 12/08/2026 atau 13/08/2026.)
-- "deskripsi": (1-2 kalimat bahasa Indonesia. ATURAN MUTLAK: 1. JANGAN PERNAH memasukkan nama peserta ke dalam deskripsi. Awali langsung dengan 'Pelatihan mengenai...'. 2. Jika durasi < 12 jam, JANGAN sebutkan info angka waktu/durasi sama sekali. Jika durasi >= 12 jam, sebutkan durasinya dan wajib gunakan kata 'estimasi'.)
+- "deskripsi": (1-2 kalimat bahasa Indonesia. ATURAN MUTLAK: 1. JANGAN PERNAH memasukkan nama peserta ke dalam deskripsi. 2. Jika durasi < 12 jam, JANGAN sebutkan info angka waktu/durasi sama sekali. Jika durasi >= 12 jam, sebutkan durasinya dan wajib gunakan kata 'estimasi'.)
 - "penyelenggara": (Nama Institusi)
 - "nama_kegiatan": (Judul kegiatan)
 - "nama_kegiatan_inggris": (Translate ke Inggris)
 - "jenis_kategori": (RULE: Jika sertifikat online course, WAJIB pilih "Pelatihan")
 - "jenis_kegiatan": (Pilih satu yang tepat)
-- "tingkat_kegiatan": (RULE PENTING: Jika penyelenggara dari Indonesia seperti 'Dicoding', WAJIB pilih "Nasional". Jika luar negeri seperti 'IBM' atau 'Coursera', pilih "Internasional")
+- "tingkat_kegiatan": (Evaluasi skala kegiatan secara cerdas dan mandiri. Analisis konteks dari nama acara, penyelenggara, dan bahasa yang digunakan. Tentukan apakah skala acara ini "Internasional", "Nasional", "Regional", atau "Universitas". CATATAN: Sebuah acara bisa saja berskala "Internasional" (seperti summit/konferensi global) meskipun diselenggarakan secara fisik di Indonesia. Gunakan pengetahuan umum dan logikamu untuk menilai skala sesungguhnya dari acara tersebut.)
 - "keikutsertaan": (Pilih satu yang tepat)
 - "jenis_penyelenggara": (Internal atau External)
 
@@ -169,13 +169,30 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = async function(e) {
             const base64Data = e.target.result.split(',')[1];
             const fileName = file.name;
+            const fileMimeType = file.type;
             let finalJsonData = null;
             let successModelName = "";
 
-            // --- FALLBACK MODEL (3.7 -> 3.6 -> 3.5) ---
-            const modelList = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
+            // --- FALLBACK MODEL (3.7 -> 3.6 -> 3.5 -> ...) ---
+            const modelList = [
+                "gemini-3.7-flash",
+                "gemini-3.6-flash",
+                "gemini-3.5-flash",
+                "gemini-3.1-pro-preview",
+                "gemini-pro-latest",        
+                "gemini-3-flash-preview",
+                "gemini-3.5-flash-lite",    
+                "gemini-3.1-flash-lite",     
+                "gemini-2.5-flash",
+                "gemini-2.5-flash-lite",     
+                "gemini-2.5-pro",
+                "gemini-flash-latest"       
+            ];
 
             for (const modelName of modelList) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
+
                 try {
                     statusEl.innerText = `Analyzing document using ${modelName}`;
                     statusEl.style.color = "#4daafc";
@@ -183,15 +200,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        signal: controller.signal, 
                         body: JSON.stringify({
                             contents: [{
                                 parts: [
                                     { text: SYSTEM_PROMPT },
-                                    { inline_data: { mime_type: "application/pdf", data: base64Data } }
+                                    { inline_data: { mime_type: fileMimeType, data: base64Data } }
                                 ]
                             }]
                         })
                     });
+
+                    clearTimeout(timeoutId);
 
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error?.message || `Failed with ${modelName}`);
@@ -203,14 +223,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     break; 
 
                 } catch (error) {
-                    console.warn(`[!] ${modelName} failed. Switching to next model`, error);
+                    clearTimeout(timeoutId);
+                    
+                    if (error.name === 'AbortError') {
+                        console.warn(`[!] ${modelName} timeout (>15 detik). Switching to next model...`);
+                    } else {
+                        console.warn(`[!] ${modelName} failed. Switching to next model...`, error);
+                    }
                 }
-            }
-
-            if (!finalJsonData) {
-                statusEl.innerText = "Error: All AI models failed. Check API quota.";
-                statusEl.style.color = "#ff3333";
-                return;
             }
 
             try {
@@ -221,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await chrome.scripting.executeScript({
                     target: { tabId: tab.id },
                     func: injectFormData,
-                    args: [finalJsonData, base64Data, fileName]
+                    args: [finalJsonData, base64Data, fileName, fileMimeType]
                 });
 
                 statusEl.innerText = "Success! Please review before submit.";
@@ -237,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-async function injectFormData(jsonData, base64Pdf, fileName) {
+async function injectFormData(jsonData, base64Pdf, fileName, fileMimeType) {
     const delay = ms => new Promise(res => setTimeout(res, ms));
 
     console.log("[AUTOFORM] Start Injection Data", jsonData);
@@ -334,8 +354,8 @@ async function injectFormData(jsonData, base64Pdf, fileName) {
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
         
-        const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
-        const file = new File([blob], fileName, { type: 'application/pdf' });
+        const blob = new Blob([new Uint8Array(byteNumbers)], { type: fileMimeType });
+        const file = new File([blob], fileName, { type: fileMimeType });
 
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
